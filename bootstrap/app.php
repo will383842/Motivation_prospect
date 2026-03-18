@@ -16,7 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) {
-            if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json(['error' => 'Non authentifié'], 401);
+        });
+        $exceptions->render(function (\Symfony\Component\Routing\Exception\RouteNotFoundException $e, $request) {
+            if (str_contains($e->getMessage(), 'login')) {
                 return response()->json(['error' => 'Non authentifié'], 401);
             }
         });
