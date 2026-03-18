@@ -1,0 +1,134 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: conversion-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8096:80"
+    volumes:
+      - .:/var/www/html
+      - app_storage:/var/www/html/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=conversion_engine
+      - DB_USERNAME=conversion
+      - DB_PASSWORD=conversion_secret
+      - REDIS_HOST=redis
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: conversion-queue
+    restart: unless-stopped
+    command: php artisan queue:work redis --queue=default,emails --sleep=3 --tries=3 --max-time=3600
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=conversion_engine
+      - DB_USERNAME=conversion
+      - DB_PASSWORD=conversion_secret
+      - REDIS_HOST=redis
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: conversion-scheduler
+    restart: unless-stopped
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=conversion_engine
+      - DB_USERNAME=conversion
+      - DB_PASSWORD=conversion_secret
+      - REDIS_HOST=redis
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: conversion-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: conversion_engine
+      POSTGRES_USER: conversion
+      POSTGRES_PASSWORD: conversion_secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conversion -d conversion_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    container_name: conversion-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+volumes:
+  pgdata:
+  redisdata:
+  app_storage:
