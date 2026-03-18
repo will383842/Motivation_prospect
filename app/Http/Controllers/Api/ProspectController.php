@@ -87,7 +87,7 @@ class ProspectController extends Controller
         // Requête agrégée unique (au lieu de 14 queries séparées)
         $agg = Prospect::selectRaw("
             COUNT(*) as total,
-            SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as actifs,
+            SUM(CASE WHEN is_active = true THEN 1 ELSE 0 END) as actifs,
             SUM(CASE WHEN lifecycle_state = 'lead' THEN 1 ELSE 0 END) as lead_count,
             SUM(CASE WHEN lifecycle_state = 'nurtured' THEN 1 ELSE 0 END) as nurtured_count,
             SUM(CASE WHEN lifecycle_state = 'hot' THEN 1 ELSE 0 END) as hot_count,
